@@ -1,0 +1,50 @@
+---
+title: "推荐几篇关于字符编码、乱码的文章"
+date: 2018-07-01T11:10:40+08:00
+draft: false
+tags: ["乱码"]
+---
+
+= 推荐几篇关于字符编码、乱码的文章
+
+日常开发中，多多少少会遇到乱码的问题。
+
+为什么会乱码？
+
+如果解决乱码？
+
+字符集、字符编码、代码单元、代码点，分别是什么意思？
+
+……
+
+在此推荐几篇之前看过的文章，看完之后，应该就不会有上面的疑惑了，下次再遇到乱码问题
+，可以分析是哪个环节出了问题，从而对症下药。
+
+=== http://unicode.org/glossary/[Unicode 术语表]
+
+字符集、字符编码、代码点等常见术语可以在这里找到解释。
+
+=== http://unicode.org/faq/utf_bom.html[UTF-8, UTF-16, UTF-32 & BOM]
+
+介绍 Unicode 常见的编码方案和在 Windows 的记事本中会遇到的 BOM 头
+
+=== http://www.joelonsoftware.com/articles/Unicode.html[The Absolute Minimum Every Software Developer Absolutely, Positively Must Know About Unicode and Character Sets (No Excuses!)]
+
+Joel Spolsky 大神的“每个程序员都绝对必须知道的关于字符集和 Unicode 的那点儿事”，link:http://local.joelonsoftware.com/wiki/Talk:Chinese_(Simplified)[这里有中文翻译]，
+写得通俗易懂。
+
+=== http://kunststube.net/encoding/[What Every Programmer Absolutely, Positively Needs To Know About Encodings And Character Sets To Work With Text]
+
+标题类似于 Joel 大神的那篇，相比第一篇，此文更偏向于开发人员，讨论了乱码的细节，非常值得一读。
+
+=== http://kunststube.net/frontback/[Handling Unicode Front To Back In A Web App]
+
+以 PHP 为例介绍 Web 开发中的编码场景
+
+=== http://www.oracle.com/us/technologies/java/supplementary-142654.html[Java 平台中的增补字符]
+
+讲的是 Java 平台的增补字符，但也有提到 Unicode、代码点、编码方案等通用的知识点， https://www.oschina.net/question/12_12216[这里有中文翻译]。
+
+=== https://www.ibm.com/developerworks/cn/java/j-lo-chinesecoding/[深入分析 Java 中的中文编码问题]
+
+分析了 Java 字符编码的方方面面。
