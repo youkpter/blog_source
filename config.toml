@@ -1,4 +1,4 @@
-baseURL = "http://localhost:1313/"
+baseURL = "https://youkpter.github.io"
 title = "youkpter's blog"
 enableRobotsTXT = true
 enableEmoji = true
