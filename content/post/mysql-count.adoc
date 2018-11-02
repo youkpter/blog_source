@@ -1,0 +1,110 @@
+---
+title: "MySQL count() 解惑"
+date: 2018-11-02T23:34:21+08:00
+draft: false
+tags: ["MySQL"]
+---
+
+= MySQL count() 解惑
+
+之前有了解到 MyISAM 会单独保存表的记录数，导致 count() 在 MyISAM 和 InnoDB 下的表现不同，最近花时间专门了解了下 count()。
+
+=== 常见用法
+count() 常见的用法有如下三种：
+
+. `count(exp)` 用于返回符合 where 条件且 exp 不为 NULL 的记录数；
+. `+count(*)+` 则是返回符合 where 条件的记录数；
+. `count(1)` 的效果和第二种写法一样，都是返回符合 where 条件的记录数。其中 1 可以换成其他数值，结果都一样。
+
+第一种就不用多说，它的目的和其他两种有点不一样，是判断不为 NULL 的记录数。第二和第三种就让人犯难了，效果一样，那应该用哪
+一种呢？其实对 MySQL 而言，后两者的性能是一样的。footnote:[对于 MyISAM，官方文档说 `count(1)` 只有当表的第一列定义为 NOT
+NULL 时，才会像 `+count(*)+` 一样，直接返回保存的行数，实际测试发现并没有这个限制。]
+
+=== MyISAM
+
+对于 MyISAM 而言，每个表的行数有专门保存起来，所以：
+
+ select count(*) from foobar
+
+会被优化成直接获取保存的行数。explain 的结果也证明了这点：
+
+[source, sql]
+----
+mysql> show create table myisam_count\G
+*************************** 1. row ***************************
+       Table: myisam_count
+Create Table: CREATE TABLE `myisam_count` (
+  `id` int(11) DEFAULT NULL,
+  `name` varchar(50) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+1 row in set (0.00 sec)
+
+mysql> explain select count(*) from myisam_count\G
+*************************** 1. row ***************************
+           id: 1
+  select_type: SIMPLE
+        table: NULL
+   partitions: NULL
+         type: NULL
+possible_keys: NULL
+          key: NULL
+      key_len: NULL
+          ref: NULL
+         rows: NULL
+     filtered: NULL
+        Extra: Select tables optimized away
+1 row in set, 1 warning (0.00 sec)
+----
+
+关于 `Select tables optimized away` ，MySQL 文档是这么解释的：
+
+[quote, 'https://dev.mysql.com/doc/refman/8.0/en/explain-output.html#explain-join-types[MySQL 8.0 Reference Manual]']
+____
+The optimizer determined 1) that at most one row should be returned, and 2) that to produce this row, a deterministic
+set of rows must be read. When the rows to be read can be read during the optimization phase (for example, by reading
+index rows), there is no need to read any tables during query execution.
+
+The first condition is fulfilled when the query is implicitly grouped (contains an aggregate function but no GROUP BY
+clause). The second condition is fulfilled when one row lookup is performed per index used. The number of
+indexes read determines the number of rows to read.
+
+For storage engines that maintain an exact row count per table (such as MyISAM, but not InnoDB), this Extra value can
+occur for COUNT(*) queries for which the WHERE clause is missing or always true and there is no GROUP BY clause. (This
+is an instance of an implicitly grouped query where the storage engine influences whether a deterministic number of rows
+can be read.)
+____
+
+=== InnoDB
+
+对于 InnoDB 而言，因为其支持事务，同一时刻，不同的事务看到的数据可能不一样，所以 InnoDB 并没有保存表的行数。而是通过扫描
+索引来计算 `+count(*)+` 的结果，其值表示的是当前事务所能看到的行数。
+
+不过其采用的扫描方式几经更改：
+
+5.7.2 之前::
+扫描二级索引，对每个二级索引记录调用一个 handler 来统计行数；
+5.7.2::
+实现了一个 handler::records，只需调用一次，直接在存储引擎层计算行数，然后将结果返回
+给优化器。与此同时，其扫描方式改成了强制扫描主键，即使使用 force index 也无效，相应的工作日志为 https://dev.mysql.com/worklog/task/?id=6742[WL#6742]。
++
+关于更改扫描方式的原因，工作日志中有提到：
+之前使用二级索引扫描，当表被并发修改时，二级索引可能会存在未提交的记录，这时需要回查聚集索引判断记录是否对当前事务可见，
+会多一次读取操作，所以索性直接扫描主键索引。
++
+这种做法在大部分情况下可以带来性能提升，但有时可能会出现性能退化，有人为此报了 https://bugs.mysql.com/bug.php?id=80580[bug]。
+
+5.7.18::
+该版本撤销了 5.7.2 的修改；改回通过遍历最小的二级索引统计行数，如果没有二级索引才扫描聚簇索引。
+
+NOTE: 因为不同 MySQL 版本对 InnoDB count(*) 的实现不一样，所以其 explain 结果可能不同。有些版本的 explain 结果和 MyISAM
+一样，都是 `Select tables optimized away` ，但它并不表示 InnoDB 保存了表的行数，而是指这个结果可以在优化阶段获得。
+
+=== 参考资料
+
+* https://dev.mysql.com/doc/refman/5.7/en/group-by-functions.html#function_count[MySQL 5.7 Reference Manual]
+* https://dev.mysql.com/doc/refman/8.0/en/group-by-functions.html#function_count[ MySQL 8.0 Reference Manual]
+* https://stackoverflow.com/questions/5179969/what-is-better-in-mysql-count-or-count1[What is better in MySQL count(+*+) or count(1)?]
+* http://mysql.taobao.org/monthly/2016/06/10/[MySQL · 引擎特性 · InnoDB COUNT(+*+) 优化 (?)] 阿里云 RDS- 数据库内核组
+* https://dev.mysql.com/worklog/task/?id=6742[WL#6742: Improve InnoDB SELECT COUNT(*) performance by using handler::records]
+* https://dev.mysql.com/doc/relnotes/mysql/5.7/en/news-5-7-2.html[Changes in MySQL 5.7.2]
+* https://dev.mysql.com/doc/relnotes/mysql/5.7/en/news-5-7-18.html[Changes in MySQL 5.7.18]
